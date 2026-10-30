@@ -104,6 +104,18 @@ function ProfileTab({ c, reload }) {
   const { me } = useAuth(),
     x = c || {},
     ev = x.event_types || [];
+  const [extra, setExtra] = useState(() => ev.filter((e) => !EVENTS.includes(e)));
+  const [newEv, setNewEv] = useState('');
+  const addEv = () => {
+    const t = newEv.trim();
+    if (!t) return;
+    if ([...EVENTS, ...extra].some((e) => e.toLowerCase() === t.toLowerCase())) {
+      msg('That event type is already in the list.', 1);
+      return;
+    }
+    setExtra([...extra, t]);
+    setNewEv('');
+  };
   return (
     <>
       <h1 style={{ fontSize: 28 }}>Business Profile</h1>
@@ -141,10 +153,15 @@ function ProfileTab({ c, reload }) {
             throw new Error(
               'To publish, complete: business name, description, contact number, at least one service area, at least one event type and guest capacity.',
             );
+          const link = v('map_link');
+          if (link && !/^https?:\/\//i.test(link))
+            throw new Error('Map link must start with http:// or https://');
           const row = {
             business_name: v('business_name'),
             contact_number: v('contact_number'),
             email: v('email') || null,
+            address: v('address') || null,
+            map_link: link || null,
             logo: f.logofile.files[0] ? await upload(f.logofile.files[0], me.id) : x.logo || null,
             description: v('description'),
             note: v('note'),
@@ -201,6 +218,25 @@ function ProfileTab({ c, reload }) {
             <input name="email" type="email" defaultValue={x.email || ''} />
           </div>
           <div>
+            <label>Business address (so customers can find you)</label>
+            <input
+              name="address"
+              defaultValue={x.address || ''}
+              placeholder="Street, Barangay, Calbayog City"
+              maxLength={200}
+            />
+          </div>
+          <div>
+            <label>Map link of your place (Google Maps, optional)</label>
+            <input
+              name="map_link"
+              type="url"
+              defaultValue={x.map_link || ''}
+              placeholder="Paste your Google Maps link, e.g. https://maps.app.goo.gl/..."
+              maxLength={500}
+            />
+          </div>
+          <div>
             <label>Logo (JPG/PNG/WebP, max 2 MB)</label>
             <input type="file" name="logofile" accept="image/jpeg,image/png,image/webp" />
             {x.logo && (
@@ -219,12 +255,34 @@ function ProfileTab({ c, reload }) {
         <label>Description</label>
         <textarea name="description" rows="3" defaultValue={x.description} />
         <label>Event types</label>
-        {EVENTS.map((e) => (
+        {[...EVENTS, ...extra].map((e) => (
           <label className="chk" key={e}>
-            <input type="checkbox" name="ev" value={e} defaultChecked={ev.includes(e)} />
+            <input
+              type="checkbox"
+              name="ev"
+              value={e}
+              defaultChecked={EVENTS.includes(e) ? ev.includes(e) : true}
+            />
             {e}
           </label>
         ))}
+        <div className="add-ev">
+          <input
+            value={newEv}
+            onChange={(e) => setNewEv(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                addEv();
+              }
+            }}
+            placeholder="Type a new event type (e.g. Debut, Christening)"
+            maxLength={60}
+          />
+          <button type="button" className="btn ghost" onClick={addEv}>
+            + Add event
+          </button>
+        </div>
         <label>Service areas (comma separated)</label>
         <input
           name="areas"
@@ -243,7 +301,7 @@ function ProfileTab({ c, reload }) {
           <option>Published</option>
         </select>
         <br />
-        <button className="btn">Save profile</button>
+        <button className="btn reply-btn">Save profile</button>
       </form>
     </>
   );
@@ -622,7 +680,7 @@ function Inq({ c }) {
                 ))}
               </select>
               <br />
-              <button className="btn">Send reply & set status</button>
+              <button className="btn reply-btn">Send reply & set status</button>
             </form>
           )}
         </div>

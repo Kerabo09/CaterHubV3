@@ -1244,3 +1244,91 @@ aside {
   display: block;
   margin-top: 8px;
 }
+
+/* notifications: select all / clear */
+.note-bar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.note-bar .btn {
+  padding: 8px 16px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.note-bar .btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.note {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  cursor: pointer;
+}
+.note input {
+  margin-top: 5px;
+  width: auto;
+}
+/* owner reply: space above the send button */
+.reply-btn {
+  margin-top: 18px;
+}
+
+/* event type: one box you can type in or pick from */
+input.combo {
+  padding-right: 38px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23555' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+}
+input.combo::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  position: absolute;
+  right: 0;
+  width: 38px;
+  cursor: pointer;
+}
+input.combo {
+  position: relative;
+}
+/* owner profile: add a new event type */
+.add-ev {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  align-items: center;
+}
+.add-ev input {
+  flex: 1;
+}
+.add-ev .btn {
+  white-space: nowrap;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+
+.copy-btn {
+  padding: 4px 12px;
+  font-size: 13px;
+  margin-left: 6px;
+  cursor: pointer;
+}
+
+/* logos/photos: fit the whole picture inside its box (no cropping) */
+.ph {
+  position: relative;
+}
+.ph img {
+  position: absolute !important;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  object-position: center;
+  background: #fff;
+  transform: none !important;
+}

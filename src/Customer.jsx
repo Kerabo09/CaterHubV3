@@ -41,6 +41,8 @@ export function Inquire() {
             const f = Object.fromEntries(new FormData(e.target)),
               n = parseInt(f.guests);
             if (f.event_date < today()) throw new Error('Past dates are not accepted.');
+            const evType = (f.event_type || '').trim();
+            if (!evType) throw new Error('Please type the event type.');
             if (!(n >= 1)) throw new Error('Guest count must be 1 or more.');
             const p = ps.find((x) => String(x.package_id) === sel);
             if (p && (n < p.min_guests || n > p.max_guests))
@@ -57,7 +59,7 @@ export function Inquire() {
                   caterer_id: +id,
                   package_id: p ? p.package_id : null,
                   event_date: f.event_date,
-                  event_type: f.event_type,
+                  event_type: evType,
                   location: f.location.trim(),
                   guests: n,
                   contact_phone: f.contact_phone.trim(),
@@ -96,11 +98,20 @@ export function Inquire() {
             </div>
             <div>
               <label>Event type *</label>
-              <select name="event_type">
+              <input
+                name="event_type"
+                list="inq-events"
+                className="combo"
+                placeholder="Type or pick an event type"
+                maxLength={60}
+                autoComplete="off"
+                required
+              />
+              <datalist id="inq-events">
                 {ev.map((e) => (
-                  <option key={e}>{e}</option>
+                  <option key={e} value={e} />
                 ))}
-              </select>
+              </datalist>
             </div>
             <div>
               <label>Event location *</label>
@@ -269,6 +280,7 @@ export function My() {
 }
 export function NotesBody() {
   const { me } = useAuth();
+  const [picked, setPicked] = useState(new Set());
   const s = useLoad(async () => {
     const d = ok(
       await sb
@@ -287,16 +299,67 @@ export function NotesBody() {
   }, []);
   const g = gate(s);
   if (g) return g;
+  const allPicked = s.data.length > 0 && picked.size === s.data.length;
+  const toggle = (id) =>
+    setPicked((p) => {
+      const n = new Set(p);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  const clearPicked = run(async () => {
+    if (!picked.size) throw new Error('Select at least one notification to clear.');
+    const r = await sb
+      .from('notifications')
+      .delete()
+      .in('notification_id', [...picked])
+      .eq('user_id', me.id)
+      .select('notification_id');
+    if (r.error) throw r.error;
+    if (!r.data.length)
+      throw new Error('Could not clear. Run caterhub_notifications_patch.sql in Supabase first.');
+    setPicked(new Set());
+    s.reload();
+    msg('Notifications cleared');
+  });
   return (
     <>
       <h1 style={{ fontSize: 28 }}>Notifications</h1>
       <div className="card">
+        {s.data.length > 0 && (
+          <div className="note-bar">
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={() =>
+                setPicked(allPicked ? new Set() : new Set(s.data.map((n) => n.notification_id)))
+              }
+            >
+              {allPicked ? 'Unselect all' : 'Select all'}
+            </button>
+            <button
+              type="button"
+              className="btn"
+              disabled={!picked.size}
+              onClick={clearPicked}
+            >
+              Clear{picked.size ? ` (${picked.size})` : ''}
+            </button>
+          </div>
+        )}
         {s.data.map((n) => (
-          <p key={n.notification_id} style={{ fontWeight: n.is_read ? 400 : 700 }}>
-            {n.message}
-            <br />
-            <span className="muted small">{fmt(n.created_at)}</span>
-          </p>
+          <label className="note" key={n.notification_id}>
+            <input
+              type="checkbox"
+              checked={picked.has(n.notification_id)}
+              onChange={() => toggle(n.notification_id)}
+            />
+            <span style={{ fontWeight: n.is_read ? 400 : 700 }}>
+              {n.message}
+              <br />
+              <span className="muted small">{fmt(n.created_at)}</span>
+            </span>
+          </label>
         ))}
         {!s.data.length && <p className="muted">Nothing yet.</p>}
       </div>

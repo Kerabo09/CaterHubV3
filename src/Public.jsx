@@ -1,7 +1,19 @@
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { sb } from './supabase';
 import { useAuth } from './AuthContext';
-import { EVENTS, peso, ok, useLoad, gate, Empty } from './lib';
+import { EVENTS, peso, ok, msg, useLoad, gate, Empty } from './lib';
+const safeUrl = (u) => (/^https?:\/\//i.test(u || '') ? u : null);
+const mapUrl = (c) =>
+  safeUrl(c.map_link) ||
+  (c.address ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(c.address) : null);
+const copyLink = async (t) => {
+  try {
+    await navigator.clipboard.writeText(t);
+    msg('Link copied');
+  } catch {
+    msg('Could not copy. Long-press the link to copy it.', 1);
+  }
+};
 function FilterForm({ q, className, children }) {
   const nav = useNavigate();
   const s = useLoad(
@@ -40,12 +52,20 @@ function FilterForm({ q, className, children }) {
       </div>
       <div>
         <label>Event type</label>
-        <select name="event" defaultValue={q.event || ''}>
-          <option value="">Any event</option>
+        <input
+          name="event"
+          list="event-list"
+          className="combo"
+          defaultValue={q.event || ''}
+          placeholder="Any event (type or pick)"
+          maxLength={60}
+          autoComplete="off"
+        />
+        <datalist id="event-list">
           {EVENTS.map((a) => (
-            <option key={a}>{a}</option>
+            <option key={a} value={a} />
           ))}
-        </select>
+        </datalist>
       </div>
       <div>
         <label>Guests</label>
@@ -164,7 +184,8 @@ export function List() {
       (!q.area ||
         c.out_of_town ||
         c.service_areas.some((x) => x.area_name.trim().toLowerCase() === q.area.toLowerCase())) &&
-      (!q.event || c.event_types.includes(q.event)) &&
+      (!q.event ||
+        c.event_types.some((e) => e.toLowerCase().includes(q.event.trim().toLowerCase()))) &&
       (!n || (n >= c.min_guests && n <= c.max_guests)) &&
       (isNaN(a) || (mn !== null && mn >= a)) &&
       (isNaN(b) || (mn !== null && mn <= b))
@@ -196,6 +217,7 @@ export function List() {
                     {c.service_areas.map((x) => x.area_name).join(', ') || 'Calbayog City'} ·{' '}
                     {c.out_of_town ? 'Out-of-town accepted' : 'Local events only'}
                   </p>
+                  {c.address && <p className="muted small">📍 {c.address}</p>}
                   <Chips l={c.event_types} />
                   <p>
                     {c.min_guests}–{c.max_guests} guests
@@ -264,6 +286,27 @@ export function Profile() {
               <br />
               <b>Service areas:</b> {c.service_areas.map((x) => x.area_name).join(', ') || '—'}
               <br />
+              {(c.address || c.map_link) && (
+                <>
+                  <b>Address:</b> {c.address || '—'}
+                  <br />
+                  {mapUrl(c) && (
+                    <>
+                      <a href={mapUrl(c)} target="_blank" rel="noopener noreferrer">
+                        Open location in maps
+                      </a>{' '}
+                      <button
+                        type="button"
+                        className="btn ghost copy-btn"
+                        onClick={() => copyLink(mapUrl(c))}
+                      >
+                        Copy link
+                      </button>
+                      <br />
+                    </>
+                  )}
+                </>
+              )}
               <b>Out-of-town events:</b> {c.out_of_town ? 'Accepted' : 'Not accepted'}
               {c.note && (
                 <>
