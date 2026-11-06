@@ -51,7 +51,7 @@ create table caterer_profiles (
   max_guests     int,
   out_of_town    boolean not null default false,
   event_types    text[] not null default '{}',
-  status         text not null default 'Draft' check (status in ('Draft','Published')),
+  status         text not null default 'Draft' check (status in ('Draft','Published','Deactivated')),
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now(),
   check (min_guests is null or max_guests is null or min_guests <= max_guests)
@@ -162,6 +162,8 @@ create index on package_menu_items(package_id);
 create index on package_photos(package_id);
 create index on inquiries(customer_id);
 create index on inquiries(caterer_id, status);
+create index on inquiries(caterer_id, event_date);
+create index on inquiries(customer_id, event_date);
 create index on inquiries(package_id);
 create index on inquiries(event_date);
 create index on inquiry_status_history(inquiry_id);

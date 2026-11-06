@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NavLink, useParams } from 'react-router-dom';
 import { sb } from './supabase';
 import { useAuth } from './AuthContext';
-import { EVENTS, peso, day, ok, run, msg, useLoad, gate, Badge, upload } from './lib';
+import { EVENTS, peso, day, fmt, ok, run, msg, useLoad, gate, Badge, upload } from './lib';
 import { NotesBody } from './Customer';
 const TABS = [
   ['', 'Dashboard'],
@@ -299,6 +299,7 @@ function ProfileTab({ c, reload }) {
         <select name="status" defaultValue={x.status || 'Draft'}>
           <option>Draft</option>
           <option>Published</option>
+          <option>Deactivated</option>
         </select>
         <br />
         <button className="btn reply-btn">Save profile</button>
@@ -584,11 +585,12 @@ function Inq({ c }) {
     const a = ok(
       await sb.from('caterer_availability').select('day,status').eq('caterer_id', c.caterer_id),
     );
-    return { inq, av: Object.fromEntries(a.map((x) => [x.day, x.status])) };
+    const mq = await sb.from('inquiry_messages').select('*').order('created_at');
+    return { inq, av: Object.fromEntries(a.map((x) => [x.day, x.status])), msgs: mq.error ? [] : mq.data || [] };
   }, [c.caterer_id]);
   const g = gate(s);
   if (g) return g;
-  const { inq, av } = s.data,
+  const { inq, av, msgs } = s.data,
     cur = inq.find((i) => i.inquiry_id === sel) || inq[0];
   const y = m.getFullYear(),
     mo = m.getMonth(),
@@ -601,6 +603,11 @@ function Inq({ c }) {
         i.status === 'Pending' &&
         (av[i.event_date] === 'Reserved' || av[i.event_date] === 'Unavailable'),
     );
+  const byDay = {};
+  inq
+    .filter((i) => i.status !== 'Cancelled')
+    .forEach((i) => (byDay[i.event_date] = [...(byDay[i.event_date] || []), i]));
+  const first = (nm) => (nm || 'Customer').trim().split(' ')[0];
   const go = (d) => setM(new Date(y, mo + d, 1));
   return (
     <>
@@ -650,6 +657,21 @@ function Inq({ c }) {
                   Notes: {cur.message}
                 </>
               )}
+            </div>
+          )}
+          {cur && msgs.some((x) => x.inquiry_id === cur.inquiry_id) && (
+            <div className="reply small">
+              <b>Customer messages</b>
+              {msgs
+                .filter((x) => x.inquiry_id === cur.inquiry_id)
+                .map((x) => (
+                  <div key={x.message_id} style={{ marginTop: 6 }}>
+                    {x.sender_role === 'Customer' ? cur.customers?.name || 'Customer' : 'You'} ·{' '}
+                    {fmt(x.created_at)}
+                    <br />
+                    {x.message}
+                  </div>
+                ))}
             </div>
           )}
           {cur && (
@@ -705,12 +727,14 @@ function Inq({ c }) {
               const d = i + 1,
                 key = k(d),
                 st = av[key],
-                p = pend.has(key);
+                p = pend.has(key),
+                di = byDay[key] || [];
               return (
                 <button
                   type="button"
                   key={d}
-                  className={`day ${st || ''} ${p ? 'pend' : ''} ${pick === key ? 'pick' : ''}`}
+                  title={di.map((i) => `${i.customers?.name || 'Customer'} (${i.status})`).join(', ')}
+                  className={`day ${st || ''} ${p ? 'pend' : ''} ${pick === key ? 'sel' : ''}`}
                   onClick={() => setPick(key)}
                 >
                   {d}
@@ -719,6 +743,12 @@ function Inq({ c }) {
                   ) : p ? (
                     <small>Pending</small>
                   ) : null}
+                  {di.length > 0 && (
+                    <small className="cust">
+                      {first(di[0].customers?.name)}
+                      {di.length > 1 ? ` +${di.length - 1}` : ''}
+                    </small>
+                  )}
                 </button>
               );
             })}
@@ -748,22 +778,33 @@ function Inq({ c }) {
             </button>
           </p>
           {pick && (
-            <div className="small">
-              <b>{day(pick)}</b>:{' '}
-              {inq
-                .filter((i) => i.event_date === pick && i.status === 'Pending')
-                .map((i) => (
-                  <div key={i.inquiry_id}>
-                    {i.ref} · {i.customers?.name}
-                  </div>
-                ))}
-              {!inq.some((i) => i.event_date === pick && i.status === 'Pending') &&
-                'No pending inquiries'}
+            <div className="small day-inq">
+              <b>{day(pick)}</b>
+              {(byDay[pick] || []).map((i) => (
+                <button
+                  type="button"
+                  key={i.inquiry_id}
+                  className={'row ' + (cur && i.inquiry_id === cur.inquiry_id ? 'on' : '')}
+                  onClick={() => setSel(i.inquiry_id)}
+                >
+                  <span className="small">{i.ref}</span>
+                  <span>
+                    <b>{i.customers?.name || 'Customer'}</b>
+                    <br />
+                    <span className="muted small">
+                      {i.event_type} · {i.guests} guests
+                    </span>
+                  </span>
+                  <Badge s={i.status} />
+                </button>
+              ))}
+              {!(byDay[pick] || []).length && <div className="muted">No inquiries on this date.</div>}
             </div>
           )}
           <p className="muted small">
             White: Available · Grey: Unavailable · Navy: Reserved · Dashed: Pending inquiry. Tap
-            Mark to cycle Unavailable → Reserved → Available.
+            Mark to cycle Unavailable → Reserved → Available. Customer names show on the dates they
+            asked for; tap a date to see every inquiry for it.
           </p>
         </div>
       </div>

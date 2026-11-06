@@ -391,7 +391,7 @@ main {
   border: 1.5px dashed var(--rust);
   background: #fff3e8;
 }
-.day.pick {
+.day.sel {
   outline: 2px solid var(--rust);
 }
 .stats {
@@ -1331,4 +1331,142 @@ input.combo {
   object-position: center;
   background: #fff;
   transform: none !important;
+}
+
+/* ---- Owner calendar: stay inside the card, no zoom/overlap on click ---- */
+.my {
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+}
+.my > * {
+  min-width: 0;
+}
+.cal {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+.cal .day {
+  aspect-ratio: auto;
+  height: 62px;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+  transform: none !important;
+  transition: none;
+  box-shadow: none;
+}
+.cal .day:hover {
+  background: #fff3e8;
+  transform: none !important;
+}
+.cal .day.Unavailable:hover {
+  background: #e8e8e8;
+}
+.cal .day.Reserved:hover {
+  background: var(--navy);
+}
+.cal .day:focus,
+.cal .day:focus-visible {
+  outline: none;
+}
+/* selected date: inner border only, so it never spills onto neighbours */
+.cal .day.sel {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--rust);
+}
+.cal .day small {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 700px) {
+  .cal {
+    gap: 3px;
+  }
+  .cal .day {
+    height: 52px;
+    padding: 3px 4px;
+    font-size: 12px;
+  }
+}
+
+/* reserved / unavailable dates that also have a pending inquiry stay readable */
+.cal .day.Reserved.pend {
+  background: var(--navy);
+  color: #fff;
+}
+.cal .day.Unavailable.pend {
+  background: #e8e8e8;
+  color: inherit;
+}
+
+/* calendar: customer name on the date, and the list for the selected date */
+.cal .day small.cust {
+  font-weight: 700;
+  font-size: 10px;
+}
+.day-inq {
+  margin-top: 12px;
+}
+.day-inq .row {
+  margin-top: 8px;
+}
+
+/* customer calendar: dates colored by inquiry status */
+.cal .day.c-Pending {
+  background: #fff3e8;
+  border: 1.5px dashed var(--rust);
+}
+.cal .day.c-Replied {
+  background: #e8efff;
+  border-color: #9db4ee;
+}
+.cal .day.c-Available {
+  background: #e6f4ea;
+  border-color: #7fbf90;
+}
+.cal .day.c-Unavailable {
+  background: #e8e8e8;
+}
+.cal .day.c-ConfirmedOutsideSystem {
+  background: var(--navy);
+  color: #fff;
+}
+
+/* customer view of caterer availability */
+.cal.ro .day {
+  cursor: default;
+}
+.cal.ro .day:not(.Reserved):not(.Unavailable):hover {
+  background: #fff;
+}
+.cal .day.past {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.cal .day.past:not(.Reserved):not(.Unavailable):hover {
+  background: #fff;
+}
+.cal .day.Reserved,
+.cal .day.Unavailable {
+  cursor: not-allowed;
+}
+
+/* notification reply */
+.note-wrap {
+  border-top: 1px solid var(--line);
+}
+.note-wrap .note {
+  border-top: 0;
+}
+.note-reply {
+  padding: 0 0 14px 28px;
+}
+.note-reply textarea {
+  width: 100%;
+}
+.reply-link {
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { sb } from './supabase';
+import { AvailCalendar, BLOCKED, useAvail } from './AvailCalendar';
 import { useAuth } from './AuthContext';
 import { EVENTS, peso, fmt, day, today, ok, run, msg, useLoad, gate, Badge, Empty } from './lib';
 export function Inquire() {
@@ -20,6 +21,8 @@ export function Inquire() {
     [id],
   );
   const [pkg, setPkg] = useState(null);
+  const [date, setDate] = useState('');
+  const av = useAvail(id);
   const g = gate(s);
   if (g) return g;
   const c = s.data;
@@ -41,6 +44,9 @@ export function Inquire() {
             const f = Object.fromEntries(new FormData(e.target)),
               n = parseInt(f.guests);
             if (f.event_date < today()) throw new Error('Past dates are not accepted.');
+            const blocked = av.data?.map?.[f.event_date];
+            if (BLOCKED.includes(blocked))
+              throw new Error(`That date is already ${blocked}. Please choose another date.`);
             const evType = (f.event_type || '').trim();
             if (!evType) throw new Error('Please type the event type.');
             if (!(n >= 1)) throw new Error('Guest count must be 1 or more.');
@@ -93,8 +99,21 @@ export function Inquire() {
           <div className="form2">
             <div>
               <label>Event date *</label>
-              <input type="date" name="event_date" min={today()} required />
-              <span className="muted small">Past dates are not accepted.</span>
+              <input
+                type="date"
+                name="event_date"
+                min={today()}
+                required
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
+              {BLOCKED.includes(av.data?.map?.[date]) ? (
+                <span className="small" style={{ color: 'var(--rust)' }}>
+                  This date is already {av.data.map[date]}. Please choose another date.
+                </span>
+              ) : (
+                <span className="muted small">Past dates are not accepted.</span>
+              )}
             </div>
             <div>
               <label>Event type *</label>
@@ -138,6 +157,14 @@ export function Inquire() {
         </form>
         <div>
           <div className="card">
+            <h3>Caterer availability</h3>
+            {av.data ? (
+              <AvailCalendar avail={av.data} value={date} onPick={setDate} />
+            ) : (
+              <p className="muted">Loading…</p>
+            )}
+          </div>
+          <div className="card" style={{ marginTop: 16 }}>
             <h3>What happens next</h3>
             <ol className="muted">
               <li>You get a reference number. Status: Pending.</li>
@@ -175,6 +202,14 @@ function Detail({ i, me }) {
       ),
     [i.inquiry_id, i.status],
   );
+  const ms = useLoad(async () => {
+    const q = await sb
+      .from('inquiry_messages')
+      .select('*')
+      .eq('inquiry_id', i.inquiry_id)
+      .order('created_at');
+    return q.error ? [] : q.data;
+  }, [i.inquiry_id, i.status]);
   const h = s.data || [],
     r = [...h].reverse().find((x) => x.message && x.changed_by !== me.id);
   return (
@@ -195,6 +230,18 @@ function Detail({ i, me }) {
           {x.status} · {fmt(x.created_at)}
         </p>
       ))}
+      {(ms.data || []).length > 0 && (
+        <>
+          <b>Messages</b>
+          {ms.data.map((x) => (
+            <p className="small" key={x.message_id}>
+              {x.sender_role === 'Customer' ? 'You' : 'Caterer'} · {fmt(x.created_at)}
+              <br />
+              {x.message}
+            </p>
+          ))}
+        </>
+      )}
       {i.status === 'Available' && (
         <p className="muted small">
           Available is not a booking. Finalize the quotation, down payment and contract directly
@@ -206,7 +253,13 @@ function Detail({ i, me }) {
 }
 export function My() {
   const { me } = useAuth(),
-    [pick, setPick] = useState(null);
+    [pick, setPick] = useState(null),
+    [selDay, setSelDay] = useState(null),
+    [m, setM] = useState(() => {
+      const d = new Date();
+      d.setDate(1);
+      return d;
+    });
   const s = useLoad(
     async () =>
       ok(
@@ -221,13 +274,30 @@ export function My() {
   if (g) return g;
   const d = s.data,
     cur = d.find((x) => x.inquiry_id === pick) || d[0];
+  const y = m.getFullYear(),
+    mo = m.getMonth(),
+    n = new Date(y, mo + 1, 0).getDate(),
+    f = new Date(y, mo, 1).getDay(),
+    k = (x) => `${y}-${String(mo + 1).padStart(2, '0')}-${String(x).padStart(2, '0')}`;
+  const byDay = {};
+  d.filter((i) => i.status !== 'Cancelled').forEach(
+    (i) => (byDay[i.event_date] = [...(byDay[i.event_date] || []), i]),
+  );
+  const short = (nm) => (nm || 'Caterer').trim().split(' ')[0];
+  const goMonth = (x) => setM(new Date(y, mo + x, 1));
+  const openInquiry = (i) => {
+    setPick(i.inquiry_id);
+    const dt = new Date(i.event_date + 'T00:00');
+    setM(new Date(dt.getFullYear(), dt.getMonth(), 1));
+    setSelDay(i.event_date);
+  };
   return (
     <div className="wrap">
       <div className="my">
         <div className="card">
           <h1 style={{ fontSize: 28 }}>My inquiries</h1>
           {d.map((i) => (
-            <div className="mr" key={i.inquiry_id} onClick={() => setPick(i.inquiry_id)}>
+            <div className="mr" key={i.inquiry_id} onClick={() => openInquiry(i)}>
               <span>{i.ref}</span>
               <b>{i.caterer_profiles?.business_name}</b>
               <span>{day(i.event_date)}</span>
@@ -267,12 +337,91 @@ export function My() {
           )}
           <p className="muted small">You can cancel only Pending inquiries.</p>
         </div>
-        <div className="card">
-          {cur ? (
-            <Detail i={cur} me={me} />
-          ) : (
-            <p className="muted">Select an inquiry to see its status history.</p>
-          )}
+        <div>
+          <div className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button type="button" className="chip" onClick={() => goMonth(-1)}>
+                ‹
+              </button>
+              <h3>{m.toLocaleString('en', { month: 'long', year: 'numeric' })}</h3>
+              <button type="button" className="chip" onClick={() => goMonth(1)}>
+                ›
+              </button>
+            </div>
+            <div className="cal" style={{ marginTop: 10 }}>
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((w) => (
+                <b key={w}>{w}</b>
+              ))}
+              {Array.from({ length: f }, (_, i) => (
+                <i key={'e' + i} />
+              ))}
+              {Array.from({ length: n }, (_, i) => {
+                const x = i + 1,
+                  key = k(x),
+                  di = byDay[key] || [];
+                return (
+                  <button
+                    type="button"
+                    key={x}
+                    title={di
+                      .map((q) => `${q.caterer_profiles?.business_name || 'Caterer'} (${q.status})`)
+                      .join(', ')}
+                    className={`day ${di.length ? 'c-' + di[0].status.replace(/\s/g, '') : ''} ${
+                      selDay === key ? 'sel' : ''
+                    }`}
+                    onClick={() => setSelDay(key)}
+                  >
+                    {x}
+                    {di.length > 0 && (
+                      <>
+                        <small className="cust">{short(di[0].caterer_profiles?.business_name)}</small>
+                        <small>
+                          {di[0].status}
+                          {di.length > 1 ? ` +${di.length - 1}` : ''}
+                        </small>
+                      </>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            {selDay && (
+              <div className="small day-inq">
+                <b>{day(selDay)}</b>
+                {(byDay[selDay] || []).map((i) => (
+                  <button
+                    type="button"
+                    key={i.inquiry_id}
+                    className={'row ' + (cur && i.inquiry_id === cur.inquiry_id ? 'on' : '')}
+                    onClick={() => setPick(i.inquiry_id)}
+                  >
+                    <span className="small">{i.ref}</span>
+                    <span>
+                      <b>{i.caterer_profiles?.business_name || 'Caterer'}</b>
+                      <br />
+                      <span className="muted small">
+                        {i.event_type} · {i.guests} guests
+                      </span>
+                    </span>
+                    <Badge s={i.status} />
+                  </button>
+                ))}
+                {!(byDay[selDay] || []).length && (
+                  <div className="muted">No inquiries on this date.</div>
+                )}
+              </div>
+            )}
+            <p className="muted small">
+              Dates you asked a caterer for are colored by status. Tap a date to see the inquiry.
+            </p>
+          </div>
+          <div className="card" style={{ marginTop: 20 }}>
+            {cur ? (
+              <Detail i={cur} me={me} />
+            ) : (
+              <p className="muted">Select an inquiry to see its status history.</p>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -281,6 +430,8 @@ export function My() {
 export function NotesBody() {
   const { me } = useAuth();
   const [picked, setPicked] = useState(new Set());
+  const [replyTo, setReplyTo] = useState(null);
+  const [text, setText] = useState('');
   const s = useLoad(async () => {
     const d = ok(
       await sb
@@ -317,11 +468,28 @@ export function NotesBody() {
       .select('notification_id');
     if (r.error) throw r.error;
     if (!r.data.length)
-      throw new Error('Could not clear. Run caterhub_notifications_patch.sql in Supabase first.');
+      throw new Error('Could not clear. Run caterhub_safe_update.sql in Supabase first.');
     setPicked(new Set());
     s.reload();
     msg('Notifications cleared');
   });
+  // customers can reply to a caterer's update on an inquiry
+  const refOf = (n) => (n.message.match(/INQ-\d+/) || [])[0],
+    canReply = (n) => me.role === 'Customer' && refOf(n) && n.message.includes(' updated ');
+  const sendReply = (n) =>
+    run(async () => {
+      const t = text.trim();
+      if (!t) throw new Error('Please type your reply.');
+      const r = await sb.rpc('reply_to_inquiry', { p_ref: refOf(n), p_message: t });
+      if (r.error) {
+        if ((r.error.message || '').includes('reply_to_inquiry'))
+          throw new Error('Replying is not set up yet. Run caterhub_safe_update.sql in Supabase.');
+        throw r.error;
+      }
+      msg('Reply sent to the caterer');
+      setReplyTo(null);
+      setText('');
+    });
   return (
     <>
       <h1 style={{ fontSize: 28 }}>Notifications</h1>
@@ -337,29 +505,67 @@ export function NotesBody() {
             >
               {allPicked ? 'Unselect all' : 'Select all'}
             </button>
-            <button
-              type="button"
-              className="btn"
-              disabled={!picked.size}
-              onClick={clearPicked}
-            >
+            <button type="button" className="btn" disabled={!picked.size} onClick={clearPicked}>
               Clear{picked.size ? ` (${picked.size})` : ''}
             </button>
           </div>
         )}
         {s.data.map((n) => (
-          <label className="note" key={n.notification_id}>
-            <input
-              type="checkbox"
-              checked={picked.has(n.notification_id)}
-              onChange={() => toggle(n.notification_id)}
-            />
-            <span style={{ fontWeight: n.is_read ? 400 : 700 }}>
-              {n.message}
-              <br />
-              <span className="muted small">{fmt(n.created_at)}</span>
-            </span>
-          </label>
+          <div className="note-wrap" key={n.notification_id}>
+            <label className="note">
+              <input
+                type="checkbox"
+                checked={picked.has(n.notification_id)}
+                onChange={() => toggle(n.notification_id)}
+              />
+              <span style={{ fontWeight: n.is_read ? 400 : 700 }}>
+                {n.message}
+                <br />
+                <span className="muted small">{fmt(n.created_at)}</span>
+              </span>
+            </label>
+            {canReply(n) && (
+              <div className="note-reply">
+                {replyTo === n.notification_id ? (
+                  <>
+                    <textarea
+                      rows="3"
+                      maxLength={1000}
+                      value={text}
+                      onChange={(e) => setText(e.target.value)}
+                      placeholder={`Reply to the caterer about ${refOf(n)}...`}
+                    />
+                    <div className="note-bar" style={{ marginTop: 8, marginBottom: 0 }}>
+                      <button type="button" className="btn" onClick={sendReply(n)}>
+                        Send reply
+                      </button>
+                      <button
+                        type="button"
+                        className="btn ghost"
+                        onClick={() => {
+                          setReplyTo(null);
+                          setText('');
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn ghost reply-link"
+                    onClick={() => {
+                      setReplyTo(n.notification_id);
+                      setText('');
+                    }}
+                  >
+                    Reply to caterer
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         ))}
         {!s.data.length && <p className="muted">Nothing yet.</p>}
       </div>

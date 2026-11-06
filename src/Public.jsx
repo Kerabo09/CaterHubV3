@@ -1,3 +1,4 @@
+import { AvailCalendar, useAvail } from './AvailCalendar';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { sb } from './supabase';
 import { useAuth } from './AuthContext';
@@ -255,6 +256,7 @@ export function Profile() {
       ),
     [id],
   );
+  const av = useAvail(id);
   const g = gate(s);
   if (g) return g;
   const c = s.data;
@@ -366,6 +368,10 @@ export function Profile() {
               Reserved or Unavailable dates cannot be accepted. The caterer confirms availability
               when replying.
             </p>
+          </div>
+          <div className="card" style={{ marginTop: 16 }}>
+            <h3>Availability</h3>
+            {av.data ? <AvailCalendar avail={av.data} /> : <p className="muted">Loading…</p>}
           </div>
         </div>
       </div>
