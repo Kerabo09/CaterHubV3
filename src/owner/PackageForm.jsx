@@ -1,29 +1,27 @@
 import { run } from '../shared/lib';
 export const CATS = ['Main dish', 'Side', 'Dessert', 'Drinks'];
 export const pbody = (f) => {
-  if (+f.min.value > +f.max.value) throw new Error('Min guests cannot exceed max guests.');
+  const g = (k) => f.elements.namedItem(k);
+  if (+g('min').value > +g('max').value) throw new Error('Min guests cannot exceed max guests.');
   return {
-    name: f.name.value.trim(),
-    price: +f.price.value,
-    min_guests: +f.min.value,
-    max_guests: +f.max.value,
-    description: f.description.value.trim(),
-    inclusions: f.inc.value
-      .split(',')
+    name: g('name').value.trim(),
+    price: +g('price').value,
+    min_guests: +g('min').value,
+    max_guests: +g('max').value,
+    description: g('description').value.trim(),
+    inclusions: g('inc')
+      .value.split(',')
       .map((a) => a.trim())
       .filter(Boolean),
-    tables_chairs: f.tc.value,
-    is_customizable: f.cust.checked,
+    tables_chairs: g('tc').value,
+    is_customizable: g('cust').checked,
   };
 };
-export function PkgForm({ p = {}, label, onSave }) {
-  return (
-    <form
-      key={p.updated_at}
-      onSubmit={run(async (e) => {
-        await onSave(pbody(e.target));
-      })}
-    >
+// bare: only the fields, no <form> and no button (used inside the Edit package form,
+// where one Save changes button at the bottom saves the fields, menu and photos together)
+export function PkgForm({ p = {}, label, onSave, bare }) {
+  const fields = (
+    <>
       <div className="form2">
         <div>
           <label>Name *</label>
@@ -55,6 +53,17 @@ export function PkgForm({ p = {}, label, onSave }) {
         <input type="checkbox" name="cust" defaultChecked={p.is_customizable} />
         Customizable
       </label>
+    </>
+  );
+  if (bare) return <div>{fields}</div>;
+  return (
+    <form
+      key={p.updated_at}
+      onSubmit={run(async (e) => {
+        await onSave(pbody(e.target));
+      })}
+    >
+      {fields}
       <br />
       <button className="btn">{label}</button>
     </form>
