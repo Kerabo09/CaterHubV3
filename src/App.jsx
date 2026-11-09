@@ -1,66 +1,18 @@
-import { useEffect, useState } from 'react';
-import { Link, Route, Routes, useLocation } from 'react-router-dom';
-import { AuthProvider, Guard, useAuth } from './AuthContext';
-import { configured, sb } from './supabase';
-import { Empty } from './lib';
-import { Home, List, Profile, Pkg } from './Public';
-import { Signup, Login } from './Auth';
-import { Inquire, My, Notes } from './Customer';
-import Owner from './Owner';
-function Header() {
-  const { me, logout } = useAuth();
-  const loc = useLocation();
-  const [unread, setUnread] = useState(0);
-  useEffect(() => {
-    if (me?.role !== 'Customer') return;
-    sb.from('notifications')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', me.id)
-      .eq('is_read', false)
-      .then((r) => setUnread(r.count || 0));
-  }, [me, loc.pathname]);
-  return (
-    <header id="top">
-      <Link className="logo" to="/">
-        <img src="/logo-icon.png" alt="" />
-        <span>
-          Cater<b>Hub</b>
-        </span>
-      </Link>
-      <nav>
-        {!me && (
-          <>
-            <Link to="/caterers">Browse caterers</Link>
-            <Link to="/">How it works</Link>
-            <Link to="/login">Log in</Link>
-            <Link className="btn" to="/signup">
-              Sign up
-            </Link>
-          </>
-        )}
-        {me?.role === 'Customer' && (
-          <>
-            <Link to="/caterers">Browse caterers</Link>
-            <Link to="/my">My inquiries</Link>
-            <Link to="/notes">Notifications{unread > 0 ? ` (${unread})` : ''}</Link>
-          </>
-        )}
-        {me?.role === 'Caterer Owner' && <span className="muted">{me.name}</span>}
-        {me && (
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              logout();
-            }}
-          >
-            Log out
-          </a>
-        )}
-      </nav>
-    </header>
-  );
-}
+import { Link, Route, Routes } from 'react-router-dom';
+import { AuthProvider, Guard } from './shared/AuthContext';
+import { configured } from './shared/supabase';
+import { Empty } from './shared/lib';
+import { Header } from './shared/Header';
+import { Home } from './public/Home';
+import { List } from './public/CatererList';
+import { Profile } from './public/CatererProfile';
+import { Pkg } from './public/PackageDetail';
+import { Signup } from './auth/Signup';
+import { Login } from './auth/Login';
+import { Inquire } from './customer/SendInquiry';
+import { My } from './customer/MyInquiries';
+import { Notes } from './customer/Notifications';
+import Owner from './owner/OwnerLayout';
 export default function App() {
   if (!configured)
     return (
