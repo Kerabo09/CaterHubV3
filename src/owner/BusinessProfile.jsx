@@ -103,6 +103,8 @@ export function ProfileTab({ c, reload }) {
             if (r.error) throw r.error;
           }
           msg('Profile saved');
+          // custom event types that were unchecked are now gone from the profile: drop their boxes
+          setExtra((list) => list.filter((t) => row.event_types.includes(t)));
           reload();
         })}
       >
